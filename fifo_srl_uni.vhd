@@ -6,7 +6,7 @@
 -- Author     : Tomasz Turek  <tomasz.turek@gmail.com>
 -- Company    : SzuWar INC
 -- Created    : 13:27:31 14-03-2010
--- Last update: 12:03:49 18-03-2010
+-- Last update: 23:23:38 20-03-2010
 -- Platform   : Xilinx ISE 10.1.03
 -- Standard   : VHDL'93
 -------------------------------------------------------------------------------
@@ -127,14 +127,17 @@ architecture fifo_srl_uni_rtl of fifo_srl_uni is
    signal t_mux_out       : type_out_reg;
    signal t_reg_in        : type_in_reg;
    signal one_delay       : std_logic := '0';
-   signal dupa       : std_logic := '0';
+   signal ce_master       : std_logic;
+   signal full_capacity   : std_logic;
+   signal data_valid_off  : std_logic;
 
 begin  -- architecture fifo_srl_uni_r
 
-   
    v_zeros <= (others => '0');
    v_ones  <= (others => '1');
-
+-------------------------------------------------------------------------------
+-- Input Register --
+-------------------------------------------------------------------------------
    GR0: if iInputReg = 0 generate
 
       t_srl_in(0) <= DATA_I;
@@ -180,7 +183,13 @@ begin  -- architecture fifo_srl_uni_r
       end process P1;
       
    end generate GR2;
-   
+-------------------------------------------------------------------------------
+-- Input Register --
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- FIFO Core, SRL16E based --
+-------------------------------------------------------------------------------
    G1: for i in 0 to c_srl_count - 1 generate
 
       G0: for j in 0 to iDataWidth - 1 generate
@@ -194,7 +203,7 @@ begin  -- architecture fifo_srl_uni_r
                   A1 => v_delay_counter(1), -- Select[1] input
                   A2 => v_delay_counter(2), -- Select[2] input
                   A3 => v_delay_counter(3), -- Select[3] input
-                  CE => v_WRITE_ENABLE(0), -- Clock enable input
+                  CE => ce_master, -- Clock enable input
                   CLK => CLK_I, -- Clock input
                   D => t_srl_in(i)(j) -- SRL data input
                   );
@@ -202,16 +211,20 @@ begin  -- architecture fifo_srl_uni_r
       end generate G0;
       
    end generate G1;
-
+-------------------------------------------------------------------------------
+-- FIFO Core, SRL16E based --
+-------------------------------------------------------------------------------
+   
    i_srl_select <= conv_integer((v_delay_counter(iSizeDelayCounter - 1 downto 4)));
    i_size_counter <= conv_integer(v_size_counter);
-
+   ce_master <= v_WRITE_ENABLE(0) and (not full_capacity);
+   
    P0: process (CLK_I) is
    begin  -- process P0
 
       if rising_edge(CLK_I) then
 
-         if (v_WRITE_ENABLE(0) = '1') and (READ_ENABLE_I = '0') and (v_size_counter /= v_ones) then
+         if (v_WRITE_ENABLE(0) = '1') and (READ_ENABLE_I = '0') and (i_size_counter < ififoWidth) then
 
             if one_delay = '1' then
 
@@ -227,7 +240,7 @@ begin  -- architecture fifo_srl_uni_r
 
             v_size_counter <= v_size_counter + 1;
 
-         elsif (v_WRITE_ENABLE(0) = '0') and (READ_ENABLE_I = '1') and (v_size_counter /= v_zeros) then
+         elsif (v_WRITE_ENABLE(0) = '0') and (READ_ENABLE_I = '1') and (i_size_counter > 0) then
 
             if v_delay_counter = v_zeros then
 
@@ -240,7 +253,7 @@ begin  -- architecture fifo_srl_uni_r
                
             end if;
             
-           v_size_counter <= v_size_counter - 1;
+            v_size_counter <= v_size_counter - 1;
             
          else
 
@@ -249,14 +262,29 @@ begin  -- architecture fifo_srl_uni_r
             one_delay <= one_delay;
             
          end if;
+
+         if i_size_counter = 0 then
+
+            data_valid_off <= '1';
+
+         else
+
+            data_valid_off <= '0';
+            
+         end if;
          
       end if;
       
    end process P0;
 
+   full_capacity <= '0' when i_size_counter < ififoWidth else '1';
+-------------------------------------------------------------------------------
+-- Output Register --
+-------------------------------------------------------------------------------
    t_mux_out(0) <= t_mux_in(i_srl_select);      
-   READ_VALID_O <= v_READ_ENABLE(0);
+   READ_VALID_O <= v_READ_ENABLE(0) and (not data_valid_off);
    FIFO_COUNT_O <= v_size_counter;
+   
 
    GM0: if iOutputReg = 0 generate
 
@@ -303,37 +331,18 @@ begin  -- architecture fifo_srl_uni_r
       end process P2;
       
    end generate GM2;
-
-   PF: process (CLK_I) is
-   begin  -- process PF
-
-      if rising_edge(CLK_I) then
-
-         if i_size_counter >= ififoWidth - iFullFlagOfSet then
-
-            FULL_FLAG_O <= '1';
-
-         else
-
-            FULL_FLAG_O <= '0';
-            
-         end if;
-
-         if i_size_counter < iEmptyFlagOfSet then
-
-            EMPTY_FLAG_O <= '1';
-
-         else
-
-            EMPTY_FLAG_O <= '0';
-            
-         end if;
-         
-      end if;
-      
-   end process PF;
-
+-------------------------------------------------------------------------------
+-- Output Register --
+-------------------------------------------------------------------------------
    
+-------------------------------------------------------------------------------
+-- Flag Generators --
+-------------------------------------------------------------------------------
+   EMPTY_FLAG_O <= '0' when (i_size_counter)> iEmptyFlagOfSet             else '1';
+   FULL_FLAG_O  <= '1' when i_size_counter >= ififoWidth - iFullFlagOfSet else '0';
+-------------------------------------------------------------------------------
+-- Flag Generators --
+-------------------------------------------------------------------------------
    
 end architecture fifo_srl_uni_rtl;
 

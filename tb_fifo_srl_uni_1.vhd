@@ -6,7 +6,7 @@
 -- Author     : Tomasz Turek  <tomasz.turek@gmail.com>
 -- Company    : SzuWar INC
 -- Created    : 09:45:13 16-03-2010
--- Last update: 11:28:50 18-03-2010
+-- Last update: 23:36:11 20-03-2010
 -- Platform   : Xilinx ISE 10.1.03
 -- Standard   : VHDL'93
 -------------------------------------------------------------------------------
@@ -25,8 +25,7 @@ use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
 
-entity tb_fifo_srl_uni_1 is
-   
+entity tb_fifo_srl_uni_1 is   
 end entity tb_fifo_srl_uni_1;
 
 architecture testbench of tb_fifo_srl_uni_1 is
@@ -64,15 +63,15 @@ architecture testbench of tb_fifo_srl_uni_1 is
 -- constants --
 -------------------------------------------------------------------------------
    constant iDataWidth        : integer := 16;
-   constant ififoWidth        : integer := 4;
+   constant ififoWidth        : integer := 8;
    constant iInputReg         : integer := 0;
    constant iOutputReg        : integer := 1;
-   constant iFullFlagOfSet    : integer := 1;
-   constant iEmptyFlagOfSet   : integer := 1;
-   constant iSizeDelayCounter : integer := 6;
+   constant iFullFlagOfSet    : integer := 0;
+   constant iEmptyFlagOfSet   : integer := 0;
+   constant iSizeDelayCounter : integer := 5;
    
-   constant iWriteDataCounter : integer := 12;
-   constant iReadDataCounter  : integer := 6;
+   constant iWriteDataCounter : integer := 10;
+   constant iReadDataCounter  : integer := 13;
    
 -------------------------------------------------------------------------------
 -- signals --
@@ -92,7 +91,8 @@ architecture testbench of tb_fifo_srl_uni_1 is
 
    -- others --
    signal v_count       : std_logic_vector(15 downto 0) := x"0000";
-   signal i_count_write : integer range 0 to ififoWidth := 0;
+   signal i_count_write : integer := 0;
+   signal i_count_read : integer := 0;
    
 begin  -- architecture testbench
 
@@ -144,6 +144,28 @@ begin  -- architecture testbench
 
          case v_count is
 
+            when x"0001" =>
+
+               if (iWriteDataCounter + 1) > i_count_write then
+
+                  DATA_I <= DATA_I + 1;
+                  WRITE_ENABLE_I <= '1';
+                  READ_ENABLE_I <= '0';
+                  i_count_write <= i_count_write + 1;
+                  
+               else
+                  
+                  v_count <= v_count + 1;
+                     
+               end if;
+
+            when x"0002" =>
+
+               DATA_I <= x"0000";
+               WRITE_ENABLE_I <= '0';
+               READ_ENABLE_I <= '0';
+               v_count <= v_count + 1;
+               
             when x"0003" =>
 
                DATA_I <= x"0010";
@@ -176,10 +198,32 @@ begin  -- architecture testbench
 
                DATA_I <= x"0000";
                WRITE_ENABLE_I <= '0';
-               READ_ENABLE_I <= '1';
+               READ_ENABLE_I <= '0';
                v_count <= v_count + 1;
 
             when x"0008" =>
+
+               DATA_I <= x"0000";
+               WRITE_ENABLE_I <= '0';
+               READ_ENABLE_I <= '0';
+               v_count <= v_count + 1;
+
+            when x"0010" =>
+
+               if (iReadDataCounter + 1) > i_count_read then
+
+                  DATA_I <= DATA_I;
+                  WRITE_ENABLE_I <= '0';
+                  READ_ENABLE_I <= '1';
+                  i_count_read <= i_count_read + 1;
+                  
+               else
+                  
+                  v_count <= v_count + 1;
+                     
+               end if;
+
+            when x"0011" =>
 
                DATA_I <= x"0000";
                WRITE_ENABLE_I <= '0';
