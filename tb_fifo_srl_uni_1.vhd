@@ -6,7 +6,7 @@
 -- Author     : Tomasz Turek  <tomasz.turek@gmail.com>
 -- Company    : SzuWar INC
 -- Created    : 09:45:13 16-03-2010
--- Last update: 23:36:11 20-03-2010
+-- Last update: 14:49:11 21-03-2010
 -- Platform   : Xilinx ISE 10.1.03
 -- Standard   : VHDL'93
 -------------------------------------------------------------------------------
@@ -38,7 +38,7 @@ architecture testbench of tb_fifo_srl_uni_1 is
       generic (
             iDataWidth        : integer range 1 to 32   := 17;
             ififoWidth        : integer range 1 to 1023 := 33;
-            iInputReg         : integer range 0 to 2    := 0;
+            iInputReg         : integer range 0 to 3    := 0;
             iOutputReg        : integer range 0 to 3    := 2;
             iFullFlagOfSet    : integer range 0 to 1021 := 2;
             iEmptyFlagOfSet   : integer range 0 to 1021 := 5;
@@ -63,15 +63,15 @@ architecture testbench of tb_fifo_srl_uni_1 is
 -- constants --
 -------------------------------------------------------------------------------
    constant iDataWidth        : integer := 16;
-   constant ififoWidth        : integer := 8;
-   constant iInputReg         : integer := 0;
-   constant iOutputReg        : integer := 1;
+   constant ififoWidth        : integer := 33;
+   constant iInputReg         : integer := 3;
+   constant iOutputReg        : integer := 3;
    constant iFullFlagOfSet    : integer := 0;
    constant iEmptyFlagOfSet   : integer := 0;
-   constant iSizeDelayCounter : integer := 5;
+   constant iSizeDelayCounter : integer := 6;
    
-   constant iWriteDataCounter : integer := 10;
-   constant iReadDataCounter  : integer := 13;
+   constant iWriteDataCounter : integer := 22;
+   constant iReadDataCounter  : integer := 33;
    
 -------------------------------------------------------------------------------
 -- signals --
@@ -154,7 +154,10 @@ begin  -- architecture testbench
                   i_count_write <= i_count_write + 1;
                   
                else
-                  
+
+                  DATA_I <= DATA_I;
+                  WRITE_ENABLE_I <= '0';
+                  READ_ENABLE_I <= '0';
                   v_count <= v_count + 1;
                      
                end if;
@@ -184,7 +187,7 @@ begin  -- architecture testbench
 
                DATA_I <= x"0100";
                WRITE_ENABLE_I <= '1';
-               READ_ENABLE_I <= '0';
+               READ_ENABLE_I <= '1';
                v_count <= v_count + 1;
                
             when x"0006" =>

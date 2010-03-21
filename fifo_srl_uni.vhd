@@ -6,7 +6,7 @@
 -- Author     : Tomasz Turek  <tomasz.turek@gmail.com>
 -- Company    : SzuWar INC
 -- Created    : 13:27:31 14-03-2010
--- Last update: 23:23:38 20-03-2010
+-- Last update: 15:02:32 21-03-2010
 -- Platform   : Xilinx ISE 10.1.03
 -- Standard   : VHDL'93
 -------------------------------------------------------------------------------
@@ -18,13 +18,13 @@
 -- Date                  Version  Author  Description
 -- 13:27:31 14-03-2010   1.0      szuwarek  Created
 -------------------------------------------------------------------------------
-
+-- Version 1.1 unlimited size of Input and Output register.
+-- Version 1.0
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use ieee.std_logic_arith.all;
 use IEEE.STD_LOGIC_UNSIGNED.all;
---use ieee.numeric_std.all;
 
 Library UNISIM;
 use UNISIM.vcomponents.all;
@@ -34,7 +34,7 @@ entity fifo_srl_uni is
    generic (
       iDataWidth        : integer range 1 to 32   := 17;
       ififoWidth        : integer range 1 to 1023 := 32;
-      iInputReg         : integer range 0 to 2    := 0;
+      iInputReg         : integer range 0 to 3    := 0;
       iOutputReg        : integer range 0 to 3    := 2;
       iFullFlagOfSet    : integer range 0 to 1021 := 2;
       iEmptyFlagOfSet   : integer range 0 to 1021 := 5;
@@ -57,7 +57,6 @@ end entity fifo_srl_uni;
 
 architecture fifo_srl_uni_rtl of fifo_srl_uni is
 
-   
 -------------------------------------------------------------------------------
 -- functions --
 -------------------------------------------------------------------------------
@@ -116,9 +115,9 @@ architecture fifo_srl_uni_rtl of fifo_srl_uni is
    signal v_delay_counter : std_logic_vector(iSizeDelayCounter - 1 downto 0) := (others => '0');
    signal v_size_counter  : std_logic_vector(iSizeDelayCounter - 1 downto 0) := (others => '0');
    signal v_zeros         : std_logic_vector(iSizeDelayCounter - 1 downto 0) := (others => '0');
-   signal v_ones          : std_logic_vector(iSizeDelayCounter - 1 downto 0) := (others => '0');
    signal v_WRITE_ENABLE  : std_logic_vector(iInputReg downto 0);
    signal v_READ_ENABLE   : std_logic_vector(iOutputReg downto 0);
+   signal v_valid_delay   : std_logic_vector(iOutputReg downto 0);
    signal i_size_counter  : integer range 0 to 1023 := 0;
    signal i_srl_select    : integer range 0 to 64 := 0;
    signal i_temp          : integer range 0 to 64;
@@ -134,21 +133,32 @@ architecture fifo_srl_uni_rtl of fifo_srl_uni is
 begin  -- architecture fifo_srl_uni_r
 
    v_zeros <= (others => '0');
-   v_ones  <= (others => '1');
+
+   i_srl_select         <= conv_integer((v_delay_counter(iSizeDelayCounter - 1 downto 4)));
+   i_size_counter       <= conv_integer(v_size_counter);
+
+   ce_master            <= v_WRITE_ENABLE(0) and (not full_capacity);
+   
+   full_capacity        <= '0' when i_size_counter < ififoWidth else '1';
+
+   t_mux_out(0)         <= t_mux_in(i_srl_select);      
+   READ_VALID_O         <= v_READ_ENABLE(0) and (not v_valid_delay(0));
+   FIFO_COUNT_O         <= v_size_counter;
+   
 -------------------------------------------------------------------------------
 -- Input Register --
 -------------------------------------------------------------------------------
    GR0: if iInputReg = 0 generate
 
       t_srl_in(0) <= DATA_I;
-      v_WRITE_ENABLE(0) <= WRITE_ENABLE_I;
+      v_WRITE_ENABLE(iInputReg) <= WRITE_ENABLE_I;
       
    end generate GR0;
 
    GR1: if iInputReg = 1 generate
 
       t_srl_in(0) <= t_reg_in(0);
-      v_WRITE_ENABLE(1) <= WRITE_ENABLE_I;
+      v_WRITE_ENABLE(iInputReg) <= WRITE_ENABLE_I;
       
       P1: process (CLK_I) is
       begin  -- process P1
@@ -156,7 +166,7 @@ begin  -- architecture fifo_srl_uni_r
          if rising_edge(CLK_I) then
 
             t_reg_in(0) <= DATA_I;
-            v_WRITE_ENABLE(0) <= v_WRITE_ENABLE(1);
+            v_WRITE_ENABLE(0) <= v_WRITE_ENABLE(iInputReg);
             
          end if;
          
@@ -164,19 +174,19 @@ begin  -- architecture fifo_srl_uni_r
       
    end generate GR1;
 
-   GR2: if iInputReg = 2 generate
+   GR2: if iInputReg > 1 generate
 
       t_srl_in(0) <= t_reg_in(0);
-      v_WRITE_ENABLE(2) <= WRITE_ENABLE_I;
+      v_WRITE_ENABLE(iInputReg) <= WRITE_ENABLE_I;
 
       P1: process (CLK_I) is
       begin  -- process P1
 
          if rising_edge(CLK_I) then
 
-            t_reg_in(1) <= DATA_I;
-            t_reg_in(0) <= t_reg_in(1);
-            v_WRITE_ENABLE(1 downto 0) <= v_WRITE_ENABLE(2 downto 1);
+            t_reg_in(iInputReg - 1) <= DATA_I;
+            t_reg_in(0 to iInputReg - 2) <= t_reg_in(1 to iInputReg -1);
+            v_WRITE_ENABLE(iInputReg - 1 downto 0) <= v_WRITE_ENABLE(iInputReg downto 1);
             
          end if;
          
@@ -214,10 +224,6 @@ begin  -- architecture fifo_srl_uni_r
 -------------------------------------------------------------------------------
 -- FIFO Core, SRL16E based --
 -------------------------------------------------------------------------------
-   
-   i_srl_select <= conv_integer((v_delay_counter(iSizeDelayCounter - 1 downto 4)));
-   i_size_counter <= conv_integer(v_size_counter);
-   ce_master <= v_WRITE_ENABLE(0) and (not full_capacity);
    
    P0: process (CLK_I) is
    begin  -- process P0
@@ -262,43 +268,32 @@ begin  -- architecture fifo_srl_uni_r
             one_delay <= one_delay;
             
          end if;
-
-         if i_size_counter = 0 then
-
-            data_valid_off <= '1';
-
-         else
-
-            data_valid_off <= '0';
-            
-         end if;
          
       end if;
       
    end process P0;
 
-   full_capacity <= '0' when i_size_counter < ififoWidth else '1';
+   data_valid_off <= '1' when i_size_counter = 0 else '0';
 -------------------------------------------------------------------------------
 -- Output Register --
 -------------------------------------------------------------------------------
-   t_mux_out(0) <= t_mux_in(i_srl_select);      
-   READ_VALID_O <= v_READ_ENABLE(0) and (not data_valid_off);
-   FIFO_COUNT_O <= v_size_counter;
-   
 
+   -- size of output register: 0 --
    GM0: if iOutputReg = 0 generate
 
       DATA_O <= t_mux_out(0);
       v_READ_ENABLE(0) <= READ_ENABLE_I;
+      v_valid_delay(0) <= data_valid_off;
       
    end generate GM0;
 
-
+   -- size of output register: 1 --
    GM1: if iOutputReg = 1 generate
 
       DATA_O <= t_mux_out(1);
       v_READ_ENABLE(1) <= READ_ENABLE_I;
-
+      
+      
       P2: process (CLK_I) is
       begin  -- process P2
 
@@ -306,13 +301,15 @@ begin  -- architecture fifo_srl_uni_r
 
             v_READ_ENABLE(0) <= v_READ_ENABLE(1);
             t_mux_out(1) <= t_mux_out(0);
+            v_valid_delay(0) <= data_valid_off;
             
          end if;
          
       end process P2;
       
    end generate GM1;
-   
+
+   -- size of output register: > 1 --
    GM2: if iOutputReg > 1 generate
 
       DATA_O <= t_mux_out(iOutputReg);
@@ -325,6 +322,7 @@ begin  -- architecture fifo_srl_uni_r
 
             v_READ_ENABLE(iOutputReg - 1 downto 0) <= v_READ_ENABLE(iOutputReg downto 1);
             t_mux_out(1 to iOutputReg) <= t_mux_out(0 to iOutputReg - 1);
+            v_valid_delay(iOutputReg - 1 downto 0) <= data_valid_off&v_valid_delay(iOutputReg - 1 downto 1);
             
          end if;
          
